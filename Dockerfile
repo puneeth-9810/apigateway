@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jdk-alpine
+FROM eclipse-temurin:21-jdk-alpine
 WORKDIR /apigateway
 COPY target/apigateway.jar apigateway.jar
 EXPOSE 8080
