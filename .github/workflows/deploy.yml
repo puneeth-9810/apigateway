@@ -1,8 +1,9 @@
-name: Deploy API Gateway
+name: Deploy to EC2
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   deploy:
@@ -12,38 +13,36 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set up JDK 17
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Build JAR
         run: mvn clean package -DskipTests
 
-      - name: Build Docker Image
-        run: docker build -t api-gateway .
+      - name: Create Docker Image
+        run: docker build -t apigateway .
 
-      - name: Save Docker Image to TAR
-        run: docker save api-gateway > api-gateway.tar
+      - name: SCP JAR to EC2
+        uses: appleboy/scp-action@v0.1.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "target/*.jar"
+          target: "/home/ubuntu/apigateway"
 
-#      - name: Copy Image to EC2
-#        uses: appleboy/scp-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          source: "api-gateway.tar"
-#          target: "/home/ec2-user/"
-#
-#      - name: Deploy on EC2
-#        uses: appleboy/ssh-action@master
-#        with:
-#          host: ${{ secrets.EC2_HOST }}
-#          username: ${{ secrets.EC2_USER }}
-#          key: ${{ secrets.EC2_SSH_KEY }}
-#          script: |
-#            docker load < apigateway.tar
-#            docker stop apigateway || true
-#            docker rm apigateway || true
-#            docker run -d --name apigateway -p 8080:8080 apigateway
+      - name: SSH & Run Docker
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker stop apigateway || true
+            docker rm apigateway || true
+            docker rmi apigateway || true
+            cd /home/ubuntu/apigateway
+            docker build -t apigateway .
+            docker run -d -p 8080:8080 --name apigateway apigateway
